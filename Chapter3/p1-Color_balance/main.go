@@ -32,8 +32,12 @@ type Game struct {
 func (g *Game) Update() error {
 	for row := range 800 {
 		for col := range 1422 {
-			c := img2.At(row, 0)
-			newc := color.Color(color.RGBA{100, 100, 100, 0})
+			c := img.At(row, col)
+			r, g, b, _ := c.RGBA()
+			rr := uint8(r / 256)
+			gg := uint8(g / 256)
+			bb := uint8(b / 256)
+			newc := color.Color(color.RGBA{rr / 2, gg, bb, 0})
 			img2.Set(row, col, newc)
 		}
 	}
