@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	//"image/color"
+	"image/color"
 	_ "image/png"
 	"log"
 	"math"
@@ -39,6 +39,26 @@ func clamp(x, vmin, vmax uint32) (y uint32) {
 	return clamped
 }
 
+func cdf(ImgIn [][]uint8, rows, cols int) (_cdf [256]uint8) {
+	var cdf [256]uint8
+	var Ntot uint32 = 0
+
+	for ival := range 256 {
+		Ntot = 1
+		for ir := range rows {
+			for ic := range cols {
+
+				if ImgIn[ir][ic] < uint8(ival) {
+					Ntot += 1
+				}
+
+			}
+		}
+		cdf[ival] = uint8(256 * Ntot / uint32(rows) / uint32(cols))
+	}
+	return cdf
+}
+
 func balancecolor(r, g, b uint32, scale, power float64) (nr, ng, nb uint8) {
 
 	// assumes the input jpg is input as with uint32 values for RGB
@@ -57,28 +77,55 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
-	//	for col := range 910 {
-	//		for row := range 732 {
-	//			c := img.At(col, row)
-	//			r, g, b, _ := c.RGBA()
-	//			rr, gg, bb := balancecolor(r, g, b, 1.0, 1.0)
-	//			dist := math.Sqrt(math.Pow(float64(rr)-0.0, 2) +
-	//				math.Pow(float64(gg)-0.0, 2) +
-	//				math.Pow(float64(bb)-255.0, 2))
-	//
-	//			if (dist < 270.0) && (col < 500) {
-	//				newc := color.Color(color.RGBA{255, 255, 255, 255})
-	//				img3.Set(row, col, newc)
-	//				c2 := img2.At(row, col)
-	//				img4.Set(row, col, c2)
-	//			}
-	//
-	//			//			newc := color.Color(color.RGBA{rr, gg, bb, 255})
-	//			//			img2.Set(row, col, newc)
-	//			//			rr, gg, bb = balancecolor(r, g, b, 1.5, 2.2)
-	//
-	//		}
-	//	}
+
+	rs := make([][]uint8, 858)
+	for i := range rs {
+		rs[i] = make([]uint8, 642)
+	}
+	gs := make([][]uint8, 858)
+	for i := range gs {
+		gs[i] = make([]uint8, 642)
+	}
+	bs := make([][]uint8, 858)
+	for i := range bs {
+		bs[i] = make([]uint8, 642)
+	}
+	fmt.Println("Separating R, G, and B colors")
+	for col := range 858 {
+		for row := range 642 {
+			c := img.At(col, row)
+			r, g, b, _ := c.RGBA()
+			rr, gg, bb := balancecolor(r, g, b, 1.0, 1.0)
+
+			rs[col][row] = rr
+			gs[col][row] = gg
+			bs[col][row] = bb
+
+		}
+	}
+
+	//func cdf(ImgIn [][]uint8, rows, cols int) (_cdf [256]uint8) {
+	fmt.Println("Building R CDF")
+	rcdf := cdf(rs, 858, 642)
+	fmt.Println("Building G CDF")
+	gcdf := cdf(gs, 858, 642)
+	fmt.Println("Building B CDF")
+	bcdf := cdf(bs, 858, 642)
+
+	for col := range 858 {
+		for row := range 642 {
+			c := img.At(col, row)
+			r, g, b, _ := c.RGBA()
+			rr, gg, bb := balancecolor(r, g, b, 1.0, 1.0)
+
+			newc := color.Color(color.RGBA{rcdf[rr], gcdf[gg], bcdf[bb], 255})
+
+			//newc := color.Color(color.RGBA{255, 255, 255, 255})
+			img2.Set(col, row, newc)
+
+		}
+	}
+
 	fmt.Println("Updated!")
 	return nil
 }
