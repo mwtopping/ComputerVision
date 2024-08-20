@@ -26,6 +26,19 @@ func init() {
 
 }
 
+func clamp64(x, vmin, vmax float64) (y float64) {
+	var clamped float64
+	if x < vmin {
+		clamped = vmin
+	} else if x > vmax {
+		clamped = vmax
+	} else {
+		clamped = x
+	}
+
+	return clamped
+}
+
 func clamp(x, vmin, vmax uint32) (y uint32) {
 	var clamped uint32
 	if x < vmin {
@@ -73,23 +86,71 @@ func balancecolor(r, g, b uint32, scale, power float64) (nr, ng, nb uint8) {
 	return rr, gg, bb
 }
 
+func f(x float64) (y float64) {
+	return math.Pow(x, 1.0/3.0)
+	//	if x > math.Pow(6.0/29.0, 3) {
+	//		return math.Pow(x, 1.0/3.0)
+	//	}
+	//
+	// return x/(3.0*6.0*6.0/29.0/29.0) + 4.0/29.0
+}
+
+func finv(x float64) (y float64) {
+	return math.Pow(x, 3.0)
+	//	if x > 6.0/29.0 {
+	//		return math.Pow(x, 3.0)
+	//	}
+	//
+	// return 3 * (6.0 * 6.0 / 29.0 / 29.0) * (x - 4.0/29.0)
+}
+
+func extract_Lab(r, g, b float64) (Ls, as, bs float64) {
+	X := (1 / 0.17697) * (0.49*r + 0.31*g + 0.2*b)
+	Y := (1 / 0.17697) * (0.17697*r + 0.81240*g + 0.01063*b)
+	Z := (1 / 0.17697) * (0.0*r + 0.01*g + 0.99*b)
+
+	Lstar := (116*f(Y/100.0) - 16)
+	astar := (500 * (f(X/95.0) - f(Y/100.0)))
+	bstar := (200 * (f(Y/100.0) - f(Z/108.8)))
+
+	return clamp64(Lstar, 0, 255), astar, bstar
+}
+
+func Lab_to_RGB(Ls, as, bs float64) (r, g, b uint8) {
+	X := 95.0 * finv((Ls+16.0)/116.0+as/500.0)
+	Y := 100.0 * finv((Ls+16.0)/116.0)
+	Z := 108.8 * finv(((Ls+16.0)/116.0)-bs/200.0)
+
+	R := 0.17697 * (3.24*X - 1.54*Y - 0.49*Z)
+	G := 0.17697 * (-0.969*X + 1.876*Y + 0.04*Z)
+	B := 0.17697 * (0.055*X - 0.020*Y + 1.057*Z)
+
+	R = clamp64(R, 0, 255)
+	G = clamp64(G, 0, 255)
+	B = clamp64(B, 0, 255)
+
+	return uint8(R), uint8(G), uint8(B)
+	//return uint8(0.17697 * X), uint8(0.17697 * Y), uint8(0.17697 * Z)
+}
+
 type Game struct {
 }
 
 func (g *Game) Update() error {
 
-	rs := make([][]uint8, 858)
-	for i := range rs {
-		rs[i] = make([]uint8, 642)
+	Larr := make([][]uint8, 858)
+	for i := range Larr {
+		Larr[i] = make([]uint8, 642)
 	}
-	gs := make([][]uint8, 858)
-	for i := range gs {
-		gs[i] = make([]uint8, 642)
+	aarr := make([][]float64, 858)
+	for i := range aarr {
+		aarr[i] = make([]float64, 642)
 	}
-	bs := make([][]uint8, 858)
-	for i := range bs {
-		bs[i] = make([]uint8, 642)
+	barr := make([][]float64, 858)
+	for i := range barr {
+		barr[i] = make([]float64, 642)
 	}
+
 	fmt.Println("Separating R, G, and B colors")
 	for col := range 858 {
 		for row := range 642 {
@@ -97,28 +158,28 @@ func (g *Game) Update() error {
 			r, g, b, _ := c.RGBA()
 			rr, gg, bb := balancecolor(r, g, b, 1.0, 1.0)
 
-			rs[col][row] = rr
-			gs[col][row] = gg
-			bs[col][row] = bb
+			Ls, as, bs := extract_Lab(float64(rr), float64(gg), float64(bb))
+			Larr[col][row] = uint8(Ls)
+			aarr[col][row] = as
+			barr[col][row] = bs
 
 		}
 	}
 
 	//func cdf(ImgIn [][]uint8, rows, cols int) (_cdf [256]uint8) {
-	fmt.Println("Building R CDF")
-	rcdf := cdf(rs, 858, 642)
-	fmt.Println("Building G CDF")
-	gcdf := cdf(gs, 858, 642)
-	fmt.Println("Building B CDF")
-	bcdf := cdf(bs, 858, 642)
+	fmt.Println("Building L* CDF")
+	Lcdf := cdf(Larr, 858, 642)
 
+	fmt.Println(Lcdf)
 	for col := range 858 {
 		for row := range 642 {
 			c := img.At(col, row)
 			r, g, b, _ := c.RGBA()
 			rr, gg, bb := balancecolor(r, g, b, 1.0, 1.0)
+			Ls, as, bs := extract_Lab(float64(rr), float64(gg), float64(bb))
 
-			newc := color.Color(color.RGBA{rcdf[rr], gcdf[gg], bcdf[bb], 255})
+			newr, newg, newb := Lab_to_RGB(float64(Lcdf[uint8(Ls)]), float64(as), float64(bs))
+			newc := color.Color(color.RGBA{newr, newg, newb, 255})
 
 			//newc := color.Color(color.RGBA{255, 255, 255, 255})
 			img2.Set(col, row, newc)
