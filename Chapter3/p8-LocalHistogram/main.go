@@ -110,7 +110,7 @@ func finv(x float64) (y float64) {
 
 func extract_Lab(r, g, b float64) (Ls, as, bs float64) {
 	X := (1 / 0.17697) * (0.49*r + 0.31*g + 0.2*b)
-	Y := (0.17697*r + 0.81240*g + 0.01063*b)
+	Y := (1 / 0.17697) * (0.17697*r + 0.81240*g + 0.01063*b)
 	Z := (1 / 0.17697) * (0.0*r + 0.01*g + 0.99*b)
 
 	Lstar := (116*f(Y/100.0) - 16)
@@ -146,6 +146,11 @@ func (g *Game) Update() error {
 	for i := range Larr {
 		Larr[i] = make([]uint8, 600)
 	}
+	subLarr := make([][]uint8, 100)
+	for i := range subLarr {
+		subLarr[i] = make([]uint8, 100)
+	}
+
 	aarr := make([][]float64, 800)
 	for i := range aarr {
 		aarr[i] = make([]float64, 600)
@@ -171,10 +176,6 @@ func (g *Game) Update() error {
 	}
 
 	//func cdf(ImgIn [][]uint8, rows, cols int) (_cdf [256]uint8) {
-	fmt.Println("Building L* CDF")
-	Lcdf := cdf(Larr, 800, 600)
-
-	fmt.Println(Lcdf)
 	for col := range 800 {
 		for row := range 600 {
 			c := img.At(col, row)
@@ -189,6 +190,115 @@ func (g *Game) Update() error {
 
 		}
 	}
+
+	cdfs := make([][][]uint8, 8)
+	for i := range cdfs {
+		cdfs[i] = make([][]uint8, 6)
+		for j := range cdfs[i] {
+			cdfs[i][j] = make([]uint8, 256)
+
+		}
+
+	}
+
+	for tilecol := range 8 {
+		for tilerow := range 6 {
+			fmt.Println(tilecol*4, (tilecol+1)*4)
+			for col := range 100 {
+				for row := range 100 {
+					subLarr[col][row] = Larr[tilecol*100+col][tilerow*100+row]
+				}
+			}
+
+			//			fmt.Println(Larr[tilecol*4 : (tilecol+1)*4][tilerow*4 : (tilerow+1)*4])
+			mycdf := cdf(subLarr, 100, 100)
+			cdfs[tilecol][tilerow] = mycdf[:]
+
+		}
+	}
+
+	fmt.Println(cdfs)
+
+	for tilecol := range 8 {
+		for tilerow := range 6 {
+			for col := range 100 {
+				for row := range 100 {
+					xind := row + tilecol*100
+					yind := col + tilerow*100
+					L := Larr[xind][yind]
+					//L += 10 * (uint8(tilecol) + uint8(tilerow))
+
+					newL := cdfs[tilecol][tilerow][L]
+
+					newc := color.Color(color.RGBA{newL, newL, newL, 255})
+
+					//newc := color.Color(color.RGBA{255, 255, 255, 255})
+					img3.Set(xind, yind, newc)
+
+				}
+			}
+		}
+	}
+
+	for tilecol := range 8 {
+		for tilerow := range 6 {
+			for col := range 100 {
+				for row := range 100 {
+					xind := row + tilecol*100
+					yind := col + tilerow*100
+					L := Larr[xind][yind]
+
+					s := (float64(xind) - 50) / 100
+					corrs := s - float64(int(s))
+					if corrs < 0 {
+						corrs = 0
+					}
+					t := (float64(yind) - 50) / 100
+					corrt := t - float64(int(t))
+					if corrt < 0 {
+						corrt = 0
+					}
+
+					lefttileind := uint8((float64(xind) - 50) / 100)
+					toptileind := uint8((float64(yind) - 50) / 100)
+
+					tlcdf := cdfs[lefttileind][toptileind]
+					trcdf := cdfs[(lefttileind+1)%8][toptileind]
+					blcdf := cdfs[lefttileind][(toptileind+1)%6]
+					brcdf := cdfs[(lefttileind+1)%8][(toptileind+1)%6]
+
+					//leftcdf := cdfs[lefttileind][tilerow]
+					//rightcdf := cdfs[(lefttileind+1)%8][tilerow]
+					//topcdf := cdfs[][tilerow]
+					//bottomcdf := cdfs[(lefttileind+1)%8][tilerow]
+					tlL := tlcdf[L]
+					trL := trcdf[L]
+					blL := blcdf[L]
+					brL := brcdf[L]
+
+					//					newL := uint8((1-corrs)*float64(leftL) + corrs*float64(rightL))
+
+					//newL := uint8((1-corrs)*float64(tlL) + corrs*float64(trL))
+					//newL := uint8((1-corrt)*float64(tlL) + corrs*float64(trL))
+
+					newL := uint8((1-corrs)*(1-corrt)*float64(tlL) +
+						corrs*(1-corrt)*float64(trL) +
+						(1-corrs)*corrt*float64(blL) +
+						corrs*corrt*float64(brL))
+
+					newc := color.Color(color.RGBA{newL, newL, newL, 255})
+
+					//newc := color.Color(color.RGBA{255, 255, 255, 255})
+					img4.Set(xind, yind, newc)
+
+				}
+			}
+		}
+	}
+
+	fmt.Println("Building L* CDF")
+	Lcdf := cdf(Larr, 800, 600)
+	fmt.Println(Lcdf)
 
 	fmt.Println("Updated!")
 	return nil
@@ -217,7 +327,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	fmt.Println("It's starting!")
-	ebiten.SetWindowSize(800*2, 600*2)
+	ebiten.SetWindowSize(1200, 900)
 	ebiten.SetWindowTitle("Problem 1; Color Balance")
 	ebiten.SetTPS(0)
 	err := ebiten.RunGame(&Game{})
