@@ -10,6 +10,7 @@ import (
 )
 
 var img *ebiten.Image
+var padval int
 
 func init() {
 	var err error
@@ -17,7 +18,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	padval = 3
 }
 
 func pad(origImg *ebiten.Image, pad int) (paddedImage *ebiten.Image) {
@@ -29,6 +30,16 @@ func pad(origImg *ebiten.Image, pad int) (paddedImage *ebiten.Image) {
 	fmt.Println(w, h)
 
 	newimg := ebiten.NewImage(800+2*pad, 1422+2*pad)
+
+	for col := range w {
+		for row := range h {
+			c := img.At(col, row)
+			//			r, g, b, _ := c.RGBA()
+			//			rr, gg, bb := balancecolor(r, g, b, 1.5, 1.0)
+			//			newc := color.Color(color.RGBA{rr, gg, bb, 255})
+			newimg.Set(col+pad, row+pad, c)
+		}
+	}
 
 	return newimg
 }
@@ -66,7 +77,7 @@ type Game struct {
 
 func (g *Game) Update() error {
 
-	g.paddedImg = pad(img, 8)
+	g.paddedImg = pad(img, padval)
 
 	//	for row := range 800 {
 	//		for col := range 1422 {
@@ -82,16 +93,19 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.DrawImage(g.paddedImg, nil)
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(800/float64(800+2*padval), 1422/float64(1422+2*padval))
+	screen.DrawImage(g.paddedImg, op)
 
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	p := g.paddedImg.Bounds().Size()
-	w := p.X
-	h := p.Y
+	//	p := g.paddedImg.Bounds().Size()
+	//	w := p.X
+	//	h := p.Y
 
-	return 800 + 2*w, 1422 + 2*h
+	return 800, 1422
 }
 
 func main() {
