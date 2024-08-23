@@ -18,7 +18,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	padval = 3
+	padval = 16
 }
 
 func pad(origImg *ebiten.Image, pad int) (paddedImage *ebiten.Image) {
