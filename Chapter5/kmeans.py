@@ -83,7 +83,7 @@ def find_clusters(xdata, ydata, k):
 
 if __name__ == "__main__":
     fig, ax = plt.subplots()
-    nclusters = 15
+    nclusters = 10
     xdata, ydata = generate_sample_data(nclusters, 50)
 
     clusters, iter, lowestvar = find_clusters(xdata, ydata, nclusters)
