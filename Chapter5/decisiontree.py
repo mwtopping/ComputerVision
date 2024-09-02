@@ -30,8 +30,7 @@ def min_gini(arr, targets):
         ginir = gini(rinds, targets)*sum(rinds)/len(arr)
 
         ginis.append(ginil+ginir)
-
-    return bounds[np.argmin(ginis)], np.min(ginis)
+    return bounds[np.nanargmin(ginis)], np.nanmin(ginis)
 
 
 
@@ -42,7 +41,17 @@ def build_tree(data, target, labels):
     bestlab = None
     mingini = np.inf
     sepval = 0
+
+    if len(data) == 1:
+        return {'label':"Leaf", 'value':data[0][target]}
+
     for lab in labels:
+
+        if len(list(set(data[lab]))) <= 1:
+            value = round(np.sum(data[target])/len(data))
+            return {'label':"Leaf", 'value':value}
+
+
         l, g = min_gini(data[lab], data[target])
         if g < mingini:
             mingini = g
@@ -53,6 +62,7 @@ def build_tree(data, target, labels):
     tree['label'] = bestlab
     tree['sepval'] = sepval
 
+
     leftdata = data[data[bestlab] <= sepval]
     rightdata = data[data[bestlab] > sepval]
 
@@ -60,9 +70,8 @@ def build_tree(data, target, labels):
         tree['left'] = build_tree(leftdata, target, remaininglabs)
         tree['right'] = build_tree(rightdata, target, remaininglabs)
     else:
-        print("done with remaining label ", remaininglabs)
-        tree['left'] =  {'label':"Leaf", 'value':np.sum(data[target])/len(data[target])}
-        tree['right'] =  {'label':"Leaf", 'value':(len(data[target]) - np.sum(data[target]))/len(data[target])}
+        tree['left'] =  {'label':"Leaf", 'value':round(np.sum(data[target])/len(data[target]))}
+        tree['right'] =  {'label':"Leaf", 'value':round((len(data[target]) - np.sum(data[target]))/len(data[target]))}
     
     return tree
 
@@ -70,16 +79,15 @@ def build_tree(data, target, labels):
 
 def traverse(tree, values):
     if tree['label'] == "Leaf":
-        print(tree)
+        return tree['value']
     else:
         thislabel = tree['label']
-        print(tree['label'], tree['sepval'], values[thislabel])
         if values[thislabel] <= tree['sepval']: 
-            print("going left")
-            traverse(tree['left'], values)
+            val = traverse(tree['left'], values)
         else:
-            print("going right")
-            traverse(tree['right'], values)
+            val = traverse(tree['right'], values)
+
+    return val
 
 
 
@@ -87,9 +95,8 @@ if __name__ == "__main__":
     data = Table.read('./heart.csv', format='csv')
     print(data)
     target = 'target'
-    labels = ['age', 'trestbps', 'chol']
+    labels = ['age', 'trestbps', 'chol', 'thalach']
 
     tree = build_tree(data, target, labels)
-
-    test = {'age':55, 'trestbps':145, 'chol':250}
-    traverse(tree, test)
+    print(tree)
+    print(traverse(tree, data[0]))
