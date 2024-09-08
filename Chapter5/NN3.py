@@ -45,6 +45,7 @@ class NN:
         for ii in range(len(dims)-1):
             self.biases.append(np.zeros((dims[ii+1], 1)))
 
+        print(self.weights)
     def forward(self, x):
         
         self.l1z = self.l1weights*x+self.l1bias
@@ -74,6 +75,11 @@ class NN:
     
         delta = (aoutputs[-1]-ys)*dactivate(zs[-1])
         print("last delta ", delta)
+        grad_b = delta
+        grad_w = aoutputs[-2]*delta
+        
+
+
 #        for ii, (x, y) in enumerate(zip(xs, ys)):
 #            _ = self.forward(x)
 #            l2deltas[ii] = np.multiply(np.dot(self.l3weights,l3deltas[ii]), dactivate(self.l2z))[0]
