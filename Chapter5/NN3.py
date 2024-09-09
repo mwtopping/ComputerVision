@@ -7,7 +7,6 @@ import numpy as np
 def generate_data(Nsamp):
     xs = []
     ys = []
-    ts = []
 
     for ii in range(Nsamp):
         x = np.random.normal(loc=0, scale=1)
@@ -20,11 +19,10 @@ def generate_data(Nsamp):
         else:
             t = 0
 
-        xs.append(x)
-        ys.append(y)
-        ts.append(t)
+        xs.append([[x],[y]])
+        ys.append(t)
 
-    return xs, ys, ts
+    return xs, ys
 
 
 def activate(x):
@@ -45,7 +43,6 @@ class NN:
         for ii in range(len(dims)-1):
             self.biases.append(np.zeros((dims[ii+1], 1)))
 
-        print(self.weights)
     def forward(self, x):
         
         self.l1z = self.l1weights*x+self.l1bias
@@ -59,11 +56,22 @@ class NN:
 
         return self.l3output
 
-    def back(self, xs, ys, learning_rate):
+    def evaluate(self, xs):
+        newaout = xs
+        for bias, weights in zip(self.biases, self.weights):
+            z = np.dot(weights, newaout)+bias
+            newaout = activate(z)
 
+        return np.squeeze(newaout)
+
+    def back(self, xs, ys, learning_rate):
+        
+        #initialize variables
         aoutputs = [xs]        
         zs = []
-            
+        grad_b = [np.zeros_like(b) for b in self.biases]
+        grad_w = [np.zeros_like(w) for w in self.weights]
+
         for bias, weights in zip(self.biases, self.weights):
             z = np.dot(weights, aoutputs[-1])+bias
             zs.append(z)
@@ -71,53 +79,75 @@ class NN:
             aoutputs.append(newaout)
 
 
-        print("output", aoutputs[-1])
     
         delta = (aoutputs[-1]-ys)*dactivate(zs[-1])
-        print("last delta ", delta)
-        grad_b = delta
-        grad_w = aoutputs[-2]*delta
-        
+        grad_b[-1] = delta
+        grad_w[-1] = np.dot(delta, np.transpose(aoutputs[-2]))        
+
+        for ii in range(len(self.biases)-1):
+            z = zs[-2-ii]
+            dz = dactivate(z)
+            delta = np.dot(self.weights[-1-ii].T, delta)*dz
+            grad_b[-2-ii] = delta
+            grad_w[-2-ii] = np.dot(delta, np.transpose(aoutputs[-3-ii]))
+
+        return grad_b, grad_w
 
 
-#        for ii, (x, y) in enumerate(zip(xs, ys)):
-#            _ = self.forward(x)
-#            l2deltas[ii] = np.multiply(np.dot(self.l3weights,l3deltas[ii]), dactivate(self.l2z))[0]
-#            l1deltas[ii] = np.multiply(np.dot(self.l2weights,l2deltas[ii]), dactivate(self.l1z))[0]
-#
-#        N = len(xs)
-#        grad_b1 = np.sum(l1deltas, axis=0)/N
-#        grad_b2 = np.sum(l2deltas, axis=0)/N
-#        grad_b3 = np.sum(l3deltas, axis=0)/N
-#
-#        grad_w1s = np.array([np.zeros_like(self.l1weights) for x in xs])
-#        grad_w2s = np.array([np.zeros_like(self.l2weights) for x in xs])
-#        grad_w3s = np.array([np.zeros_like(self.l3weights) for x in xs])
-#
-#        for ii in range(len(xs)):
-#            grad_w3s[ii] = np.reshape(np.inner(self.l2output,l3deltas[ii]), np.shape(grad_w3s[ii]))
-#            grad_w2s[ii] = np.reshape(np.inner(self.l1output,l2deltas[np.newaxis, ii].T), np.shape(grad_w2s[ii]))
-#            grad_w1s[ii] = np.reshape(np.inner(xs[ii], l1deltas[ii,np.newaxis].T), np.shape(grad_w1s[ii]))
-#
-#        grad_w1 = np.sum(grad_w1s, axis=0)/N
-#        grad_w2 = np.sum(grad_w2s, axis=0)/N
-#        grad_w3 = np.sum(grad_w3s, axis=0)/N
-#
-#        self.l1bias -= np.reshape(grad_b1, np.shape(self.l1bias))*learning_rate
-#        self.l2bias -= np.reshape(grad_b2, np.shape(self.l2bias))*learning_rate
-#        self.l3bias -= np.reshape(grad_b3, np.shape(self.l3bias))*learning_rate
-#
-#        self.l1weights -= np.reshape(grad_w1, np.shape(self.l1weights))*learning_rate
-#        self.l2weights -= np.reshape(grad_w2, np.shape(self.l2weights))*learning_rate
-#        self.l3weights -= np.reshape(grad_w3, np.shape(self.l3weights))*learning_rate
+    def train_once(self, xarr, yarr, learning_rate):
+        tot_grad_b = [np.zeros_like(b) for b in self.biases]
+        tot_grad_w = [np.zeros_like(w) for w in self.weights]
+
+        for x, y in zip(xarr, yarr):
+            grad_b, grad_w = self.back(x, y, learning_rate)
+
+            for ii in range(len(grad_b)):
+                tot_grad_b[ii] += grad_b[ii]
+                tot_grad_w[ii] += grad_w[ii]
+
+
+        for ii in range(len(grad_b)):
+            tot_grad_b[ii] /= len(yarr)
+            tot_grad_w[ii] /= len(yarr)
+
+        for ii in range(len(grad_b)):
+            self.biases[ii] -= learning_rate*tot_grad_b[ii]
+            self.weights[ii] -= learning_rate*tot_grad_w[ii]
 
 
 if __name__ == "__main__":
 
     fig, ax = plt.subplots()
-    learning_rate = 0.05
+    learning_rate = 0.5
 
-
+    xs, ys = generate_data(100)
     xarr = np.linspace(0, 1, 100)
     network = NN([2, 4, 1])
-    network.back([[0],[0]], 1, learning_rate)
+
+    print(network.evaluate(xs[0]))
+    Niter = 5000
+    for ii in tqdm(range(Niter)):
+        network.train_once(xs, ys, learning_rate)
+
+    xx = np.linspace(-2, 2, 50)
+    yy = np.linspace(-2, 2, 50)
+    XX, YY = np.meshgrid(xx, yy)
+    result = np.zeros_like(XX)
+    for ii, x in enumerate(xx):
+        for jj, y in enumerate(yy):
+            t = network.evaluate([[x], [y]])
+            result[jj,ii] = t
+
+    ax.contourf(XX, YY, result)
+    for x, y in zip(xs, ys):
+        if y == 1:
+            color='black'
+        else:
+            color='white'
+
+        c = ax.scatter(x[0], x[1], color=color, linewidth=1, edgecolor='black')
+
+    ax.set_xlim([-2, 2])
+    ax.set_ylim([-2, 2])
+    plt.colorbar(c)
+    plt.show()
