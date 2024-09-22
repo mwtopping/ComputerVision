@@ -125,7 +125,7 @@ if __name__ == "__main__":
     network = NN([2, 4, 1])
 
     print(network.evaluate(xs[0]))
-    Niter = 5000
+    Niter = 20000
     for ii in tqdm(range(Niter)):
         network.train_once(xs, ys, learning_rate)
 
